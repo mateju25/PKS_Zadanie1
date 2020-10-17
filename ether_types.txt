@@ -1,0 +1,15 @@
+0x800 Internet IP (IPv4)
+0x801 X.75 Internet
+0x805 X.25 Level 3
+0x806 ARP (Address Resolution Protocol)
+0x8035 Reverse ARP
+0x809B Appletalk
+0x80F3 AppleTalk AARP (Kinetics)
+0x8100 IEEE 802.1Q VLAN-tagged frames
+0x8137 NovellIPX
+0x86DD IPv6
+0x880B PPP
+0x8847 MPLS
+0x8848 MPLS wit upstream-assigned label
+0x8863 PPPoE Discovery Stage
+0x8864 PPPoE Session Stage

@@ -1,0 +1,8 @@
+.idea/*
+venv/*
+vzorky/*
+*.png
+*.log
+*.pdf
+*.zip
+
