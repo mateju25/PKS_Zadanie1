@@ -2,7 +2,7 @@
 0x3 Destination Unreachable
 0x4 Source Quench
 0x5 Redirect
-0x8 Echo
+0x8 Echo Request
 0x9 Router Advertisement
 0xA Router Selection
 0xB Time Exceeded
