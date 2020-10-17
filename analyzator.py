@@ -3,6 +3,7 @@ from scapy.all import *
 import sys
 
 
+# objekt pre jeden stream komunikacie
 class Stream:
     close = False
     ip_dest = []
@@ -253,6 +254,7 @@ def print_arp_header(p_item, p_request=True):
     print()
 
 
+# zisti ci sa dana kombinacia ip_dst, ip_src, port_dst, port_src nachadza uz v nejakom streame
 def is_ip_dest_in_stream(p_streams, p_ip_dest, p_ip_src, p_prt_src=0, p_prt_dest=0):
     for x in range(0, len(p_streams)):
         if p_streams[x].close:
@@ -265,6 +267,7 @@ def is_ip_dest_in_stream(p_streams, p_ip_dest, p_ip_src, p_prt_src=0, p_prt_dest
     return -1
 
 
+# vlozi stream komunikacie do pola
 def insert_to_streams(p_arr_of_streams, p_frame_id, p_ip_src, p_ip_dest, p_port_src=0, p_port_dest=0):
     act_str = is_ip_dest_in_stream(p_arr_of_streams, p_ip_src, p_ip_dest, p_port_src, p_port_dest)
     if act_str >= 0:
@@ -273,6 +276,16 @@ def insert_to_streams(p_arr_of_streams, p_frame_id, p_ip_src, p_ip_dest, p_port_
         p_arr_of_streams.append(Stream(p_ip_src, p_ip_dest, p_port_src, p_port_dest, p_frame_id))
 
 
+# vypise komunikaciu (prvych 10 a poslednych 10 framov)
+def print_communication(p_data, frames):
+    for y in range(0, len(frames)):
+        if (y <= 10) or (y >= len(frames)-10):
+            out_to_terminal(bytes(p_data[frames[y] - 1]), y)
+        else:
+            print("...")
+
+
+# spracuje data na zaklade volby uzivatela
 def process_data(p_data, p_menu):
     ip_dest_nodes = {}
 
@@ -299,6 +312,7 @@ def process_data(p_data, p_menu):
             p_menu = 'FTP datove'
         if p_menu == 'fr':
             p_menu = 'FTP riadiace'
+
         tcp_streams = []
         tcp_ports = {}
         load_from_file("tcp_ports.txt", tcp_ports)
@@ -310,12 +324,12 @@ def process_data(p_data, p_menu):
                 if get_data_from_frame(frame, 23, 23, True) == 6:
                     tcp = get_transport_protocol(frame)
 
-                    if get_data_from_frame(get_transport_protocol(frame), 0, 1, True) in tcp_ports:
-                        if tcp_ports.get(get_data_from_frame(get_transport_protocol(frame), 0, 1, True)) != p_menu:
+                    if get_data_from_frame(tcp, 0, 1, True) in tcp_ports:
+                        if tcp_ports.get(get_data_from_frame(tcp, 0, 1, True)) != p_menu:
                             continue
                     else:
-                        if get_data_from_frame(get_transport_protocol(frame), 2, 3, True) in tcp_ports:
-                            if tcp_ports.get(get_data_from_frame(get_transport_protocol(frame), 2, 3, True)) != p_menu:
+                        if get_data_from_frame(tcp, 2, 3, True) in tcp_ports:
+                            if tcp_ports.get(get_data_from_frame(tcp, 2, 3, True)) != p_menu:
                                 continue
                         else:
                             continue
@@ -326,66 +340,42 @@ def process_data(p_data, p_menu):
 
         good = 0
         semi_good = 0
+
         for x in tcp_streams:
             begin = 0
             end = 0
-            if (get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[0] - 1])), 13, 13, True) == 0x2) \
-                    and (
-                    get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[1] - 1])), 13, 13, True) == 0x12) \
-                    and (
-                    get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[2] - 1])), 13, 13, True) == 0x10):
+            tcp_protocol = get_transport_protocol(bytes(p_data[x.frames[0] - 1]))
+            if (get_data_from_frame(tcp_protocol, 13, 13, True) == 0x2) and (
+                    get_data_from_frame(tcp_protocol, 13, 13, True) == 0x12) and (
+                    get_data_from_frame(tcp_protocol, 13, 13, True) == 0x10):
                 begin = 1
 
-            # skontrolovat
-            if (get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 1] - 1])), 13, 13,
-                                    True) == 0x14) \
-                    or (
-                    get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 1] - 1])), 13, 13,
-                                        True) == 0x4):
+            to_end0 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 1] - 1])), 13, 13, True)
+            to_end1 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 2] - 1])), 13, 13, True)
+            to_end2 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 3] - 1])), 13, 13, True)
+            to_end3 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 4] - 1])), 13, 13, True)
+
+            if (to_end0 == 0x14) or (to_end0 == 0x4):
                 end = 1
             else:
-                if (get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 1] - 1])), 13, 13,
-                                        True) == 0x10) \
-                        and (
-                        get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 2] - 1])), 13,
-                                            13,
-                                            True) == 0x11) \
-                        and (
-                        get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 3] - 1])), 13,
-                                            13,
-                                            True) == 0x11):
+                if (to_end0 == 0x10) and (to_end1 == 0x11)  and (to_end2 == 0x11):
                     end = 1
                 else:
-                    if (get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 1] - 1])), 13,
-                                            13,
-                                            True) == 0x10) \
-                            and (
-                            get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 2] - 1])),
-                                                13,
-                                                13, True) == 0x11) \
-                            and (
-                            get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 3] - 1])),
-                                                13,
-                                                13, True) == 0x10) \
-                            and (
-                            get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 4] - 1])),
-                                                13,
-                                                13, True) == 0x11):
+                    if (to_end0 == 0x10) and (to_end1 == 0x11) and (to_end2 == 0x10) and (to_end3 == 0x11):
                         end = 1
+
             if good == 0:
                 if begin and end:
                     print("----------------------------------------------------------------------------------")
                     print("Komunikácia začatá aj ukončená správne")
-                    for y in x.frames:
-                        out_to_terminal(bytes(p_data[y - 1]), y)
+                    print_communication(data, x.frames)
                     good = 1
 
             if semi_good == 0:
                 if begin and not end:
                     print("----------------------------------------------------------------------------------")
                     print("Komunikácia začatá správne ale neukončená správne")
-                    for y in x.frames:
-                        out_to_terminal(bytes(p_data[y - 1]), y)
+                    print_communication(data, x.frames)
                     semi_good = 1
 
         if good == 0:
@@ -394,8 +384,6 @@ def process_data(p_data, p_menu):
             print("Komunikácia začatá správne ale neukončená správne v tejto vzorke neexistuje.")
 
     elif p_menu == 'tf':
-        if p_menu == 'tf':
-            p_menu = 'TFTP'
         udp_streams = []
         for frame_id in range(0, len(p_data)):
             frame = bytes(p_data[frame_id])
@@ -406,7 +394,6 @@ def process_data(p_data, p_menu):
                     insert_to_streams(udp_streams, frame_id, get_data_from_frame(frame, 26, 29),
                                       get_data_from_frame(frame, 30, 33), get_data_from_frame(udp, 0, 1),
                                       get_data_from_frame(udp, 2, 3))
-
 
         x = 0
         while x < len(udp_streams):
@@ -424,12 +411,9 @@ def process_data(p_data, p_menu):
             print("Komunikácia č.", com_count)
             com_count += 1
             for y in x.frames:
-                out_to_terminal(bytes(p_data[y - 1]), y, p_menu)
+                out_to_terminal(bytes(p_data[y - 1]), y)
 
     elif p_menu == 'i':
-        if p_menu == 'i':
-            p_menu = 'ICMP'
-
         icmp_streams = []
         for frame_id in range(0, len(p_data)):
             frame = bytes(p_data[frame_id])
@@ -437,8 +421,7 @@ def process_data(p_data, p_menu):
                 insert_ipv4_to_dict(frame, ip_dest_nodes)
                 if get_data_from_frame(frame, 23, 23, True) == 1:
                     insert_to_streams(icmp_streams, frame_id, get_data_from_frame(frame, 26, 29),
-                                    get_data_from_frame(frame, 30, 33))
-
+                                      get_data_from_frame(frame, 30, 33))
 
         com_count = 1
         if len(icmp_streams) == 0:
