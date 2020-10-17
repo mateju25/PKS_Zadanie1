@@ -162,7 +162,7 @@ def choose_and_print_inside_protocol(p_frame, p_ethertype_value, p_ieeetype_valu
 
                 if get_data_from_frame(p_frame, 23, 23, True) == 17:
                     load_from_file("udp_ports.txt", ports)
-                else:
+                elif get_data_from_frame(p_frame, 23, 23, True) == 6:
                     load_from_file("tcp_ports.txt", ports)
 
                 if p_force_udp == '':
@@ -173,10 +173,11 @@ def choose_and_print_inside_protocol(p_frame, p_ethertype_value, p_ieeetype_valu
                 else:
                     print(p_force_udp)
 
-                print("Zdrojový port: ", end='')
-                print(get_data_from_frame(get_transport_protocol(p_frame), 0, 1, True))
-                print("Cieľový port: ", end='')
-                print(get_data_from_frame(get_transport_protocol(p_frame), 2, 3, True))
+                if len(ports) != 0:
+                    print("Zdrojový port: ", end='')
+                    print(get_data_from_frame(get_transport_protocol(p_frame), 0, 1, True))
+                    print("Cieľový port: ", end='')
+                    print(get_data_from_frame(get_transport_protocol(p_frame), 2, 3, True))
 
                 if ip_header_num == 1:
                     icmp_types = {}
@@ -278,11 +279,31 @@ def insert_to_streams(p_arr_of_streams, p_frame_id, p_ip_src, p_ip_dest, p_port_
 
 # vypise komunikaciu (prvych 10 a poslednych 10 framov)
 def print_communication(p_data, frames):
+    one = True
     for y in range(0, len(frames)):
-        if (y <= 10) or (y >= len(frames)-10):
-            out_to_terminal(bytes(p_data[frames[y] - 1]), y)
+        if (y <= 10) or (y >= len(frames) - 10):
+            print("Flagy: ", end='')
+            flags = bin(get_data_from_frame(get_transport_protocol(bytes(p_data[frames[y] - 1])), 13, 13, True))
+            flags = list(flags[2:len(flags)])
+            while len(flags) < 8:
+                flags.insert(0, '0')
+            if flags[7] == '1':
+                print("[FIN]", end='')
+            if flags[6] == '1':
+                print("[SYN]", end='')
+            if flags[5] == '1':
+                print("[RST]", end='')
+            if flags[4] == '1':
+                print("[PSH]", end='')
+            if flags[3] == '1':
+                print("[ACK]", end='')
+            print()
+            out_to_terminal(bytes(p_data[frames[y] - 1]), frames[y])
         else:
-            print("...")
+            if one:
+                print("...")
+                print()
+                one = False
 
 
 # spracuje data na zaklade volby uzivatela
@@ -344,24 +365,33 @@ def process_data(p_data, p_menu):
         for x in tcp_streams:
             begin = 0
             end = 0
-            tcp_protocol = get_transport_protocol(bytes(p_data[x.frames[0] - 1]))
-            if (get_data_from_frame(tcp_protocol, 13, 13, True) == 0x2) and (
-                    get_data_from_frame(tcp_protocol, 13, 13, True) == 0x12) and (
-                    get_data_from_frame(tcp_protocol, 13, 13, True) == 0x10):
+            if (get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[0] - 1])), 13, 13, True) == 0x2) and (
+                    get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[1] - 1])), 13, 13,
+                                        True) == 0x12) and (
+                    get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[2] - 1])), 13, 13, True) == 0x10):
                 begin = 1
 
-            to_end0 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 1] - 1])), 13, 13, True)
-            to_end1 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 2] - 1])), 13, 13, True)
-            to_end2 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 3] - 1])), 13, 13, True)
-            to_end3 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 4] - 1])), 13, 13, True)
+            to_end0 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 1] - 1])), 13,
+                                          13, True)
+            to_end1 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 2] - 1])), 13,
+                                          13, True)
+            to_end2 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 3] - 1])), 13,
+                                          13, True)
+            to_end3 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 4] - 1])), 13,
+                                          13, True)
 
+            # rst
             if (to_end0 == 0x14) or (to_end0 == 0x4):
                 end = 1
             else:
-                if (to_end0 == 0x10) and (to_end1 == 0x11)  and (to_end2 == 0x11):
+                # 3 way fin
+                if (to_end0 == 0x10) and ((to_end1 == 0x11) or (to_end1 == 0x19)) \
+                        and ((to_end2 == 0x11) or (to_end2 == 0x19)):
                     end = 1
                 else:
-                    if (to_end0 == 0x10) and (to_end1 == 0x11) and (to_end2 == 0x10) and (to_end3 == 0x11):
+                    # 4 way fin
+                    if (to_end0 == 0x10) and ((to_end1 == 0x11) or (to_end1 == 0x19)) \
+                            and (to_end2 == 0x10) and ((to_end3 == 0x11) or (to_end3 == 0x19)):
                         end = 1
 
             if good == 0:
@@ -397,7 +427,8 @@ def process_data(p_data, p_menu):
 
         x = 0
         while x < len(udp_streams):
-            if (len(udp_streams[x].frames) == 1) and (get_data_from_frame(udp_streams[x].port_dest, 0, 1, True) == 69):
+            if (len(udp_streams[x].frames) == 1) and ((get_data_from_frame(udp_streams[x].port_dest, 0, 1, True) == 69)
+                                                      or (get_data_from_frame(udp_streams[x].port_src, 0, 1, True) == 69)):
                 udp_streams[x + 1].frames.insert(0, udp_streams[x].frames[0])
                 udp_streams.pop(x)
                 x += 1
@@ -411,7 +442,7 @@ def process_data(p_data, p_menu):
             print("Komunikácia č.", com_count)
             com_count += 1
             for y in x.frames:
-                out_to_terminal(bytes(p_data[y - 1]), y)
+                out_to_terminal(bytes(p_data[y - 1]), y, "TFTP")
 
     elif p_menu == 'i':
         icmp_streams = []
