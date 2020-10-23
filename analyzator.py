@@ -449,9 +449,15 @@ def process_data(p_data, p_menu):
                                           13, True)
             to_end1 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 2] - 1])), 13,
                                           13, True)
-            to_end2 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 3] - 1])), 13,
+            if len(x.frames) - 3 < 0:
+                to_end2 = -1
+            else:
+                to_end2 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 3] - 1])), 13,
                                           13, True)
-            to_end3 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 4] - 1])), 13,
+            if len(x.frames) - 4 < 0:
+                to_end3 = -1
+            else:
+                to_end3 = get_data_from_frame(get_transport_protocol(bytes(p_data[x.frames[len(x.frames) - 4] - 1])), 13,
                                           13, True)
 
             # rst
@@ -533,6 +539,34 @@ def process_data(p_data, p_menu):
             if get_data_from_frame(frame, 12, 13, True) == 2048:
                 if get_data_from_frame(frame, 23, 23, True) == 1:
                     out_to_terminal(frame, frame_id + 1)
+    # blok pre spracovanie RIP protokolu
+    elif p_menu == 'r':
+        sum = 0
+        p_menu = "RIP"
+        udp_ports = {}
+        load_from_file("udp_ports.txt", udp_ports)
+        for frame_id in range(0, len(p_data)):
+            frame = bytes(p_data[frame_id])
+            #ipv4
+            if get_data_from_frame(frame, 12, 13, True) == 2048:
+                #UDP
+                if get_data_from_frame(frame, 23, 23, True) == 17:
+
+                    #RIP - nacitavam a pozeram z file ci je RIP
+                    transport = get_transport_protocol(frame)
+                    if get_data_from_frame(transport, 0, 1, True) in udp_ports:
+                        if udp_ports.get(get_data_from_frame(transport, 0, 1, True)) != p_menu:
+                            continue
+                    else:
+                        if get_data_from_frame(transport, 2, 3, True) in udp_ports:
+                            if udp_ports.get(get_data_from_frame(transport, 2, 3, True)) != p_menu:
+                                continue
+                        else:
+                            continue
+
+                    out_to_terminal(frame, frame_id + 1)
+                    sum += 1
+        print("Počet RIP rámcov: ", sum)
 
     # blok pre ARP komunikaciu
     elif p_menu == 'a':
@@ -602,6 +636,7 @@ print("     fd - pre výpis FTP dátové rámcov")
 print("     tf - pre výpis TFTP rámcov")
 print("     i - pre výpis ICMP rámcov")
 print("     a - pre výpis ARP rámcov")
+print("     r - pre výpis RIP rámcov")
 print("Zadaj možnosť: ", end='')
 menu_filter = input().lower()
 print()
