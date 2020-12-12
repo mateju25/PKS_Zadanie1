@@ -3,6 +3,5 @@ venv/*
 vzorky/*
 *.png
 *.log
-*.pdf
 *.zip
 
